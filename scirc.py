@@ -8,21 +8,21 @@ from typing import Callable
 
 
 class Node:
-    def __init__(self, name: str, voltage: int = 5):
+    def __init__(self, name: str, voltage: int = 5) -> None:
         self.name = name
         self.value = (
             False  # could have cyclic circuits like SR Latch, so sim cold start.
         )
         self.voltage = voltage
 
-    def set(self, value: bool | None):  # debate on removing `| None`
+    def set(self, value: bool | None) -> None:  # debate on removing `| None`
         # cast to bool since it's possible that a Node is passed in due to how reduce works
         self.value = bool(value)
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return f"{self.name}: {self.value}"
 
-    def __bool__(self):
+    def __bool__(self) -> bool:
         return self.value
 
 
@@ -55,7 +55,7 @@ class Operation:
         self.output.set(new_value)
         return old_value ^ new_value
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return f"{self.name}: {self.inputs} -> {self.output}"
 
 
@@ -82,23 +82,42 @@ def _not(inputs: list[Node]) -> bool:
 class ScircError(Exception):
     pass
 
+class HexProbe():
+    def __init__(self, wires: list[Node]) -> None:
+        self.wires = wires
+
+    def __repr__(self) -> str:
+        return hex(int("".join(["1" if bool(n) else "0" for n in self.wires]), 2))
+
+class NetworkMap():
+    def __init__(self, name, parent_chain: set[str]) -> None:
+        self.parent_chain = parent_chain.copy() # strings are primitives so this is okay
+        self.parent_chain.add(name)
+        self.name = name
+        nodal_map: dict[str, Node] = {}  # name: Node
+        op_map: dict[str, Operation] = {}  # name: Op
+        dependency_dict: dict[Node, set[Operation]] = {}  # Node: [Ops], input: ops
+        input_set = set()
+        input_name_set = set()
+        subnetwork = {}
 
 def main():
     proc_args = parser.parse_args()
+    gnm = NetworkMap(proc_args.filename)
     nodal_map: dict[str, Node] = {}  # name: Node
     op_map: dict[str, Operation] = {}  # name: Op
     dependency_dict: dict[Node, set[Operation]] = {}  # Node: [Ops], input: ops
     reserved_keywords = {"clk", "clock"}
     input_set = set()
     input_name_set = set()
-    # network_map = {}
     probe_list = []
     defined_ops = {"AND": _and, "OR": _or, "NAND": _nand, "NOR": _nor, "NOT": _not}
+    extended_ops = {}
     if proc_args.all_files:
         scirc_files = glob.glob("*.scirc")
     else:
-        print(proc_args.filenames)
-        scirc_files = proc_args.filenames
+        print(proc_args.filename)
+        scirc_files = proc_args.filename
     unique_counter = itertools.count()
 
     # load in each file, mangle such that we can do duplication and linkage of components
@@ -120,14 +139,21 @@ def main():
                         input_name_set.add(f"{file_prefix}_{wire}")
                         dependency_dict[new_node] = set()
                 elif kw in {"PROBE", "MEASURE"}:
-                    for wire in args:
-                        probe_list.append(nodal_map[f"{file_prefix}_{wire}"])
+                    fmt, *wires = args
+                    if fmt in {"BITS", "BIT", "B"}:
+                        for wire in wires:
+                            probe_list.append(nodal_map[f"{file_prefix}_{wire}"])
+                    elif fmt in {"HEX", "H"}:
+                        probe_list.append(HexProbe(
+                                [nodal_map[f"{file_prefix}_{wire}"] for wire in wires]
+                            )
+                        )
                 elif kw == "IMPORT":
                     pass
                 elif kw == "EXPORT":
                     pass
                 elif (
-                    kw.upper() in defined_ops
+                    kw.upper() in defined_ops or kw.upper() in extended_ops
                 ):  # begin definition of logic gates. TODO: make this extensible
                     output, *inputs = args
                     op_inputs = [nodal_map[f"{file_prefix}_{n}"] for n in inputs]
@@ -217,7 +243,7 @@ def main():
 
 
 parser = argparse.ArgumentParser(
-    description="A Small, extensible circuit design and simulation language",
+    description="A small, extensible circuit design and simulation language",
     epilog="",
 )
 group = parser.add_mutually_exclusive_group(required=True)
@@ -230,17 +256,17 @@ group.add_argument(
 )
 group.add_argument(
     "-f",
-    dest="filenames",
-    action="append",
+    dest="filename",
+    action="store",
     metavar="filename",
-    help="source files to be loaded directly",
+    help="source file to be loaded",
 )
 parser.add_argument(
     "-l",
     "--allow-dependency-loop",
     dest="dep_loop",
     action="store_true",
-    help="allow loops in the dependency tree",
+    help="allow loops in a file's dependency tree",
 )
 parser.add_argument(
     "-d",
