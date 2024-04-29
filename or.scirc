@@ -1,0 +1,4 @@
+WIRE a b c
+OR c a b
+MEASURE c
+EXPORT a b c
