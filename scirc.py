@@ -10,10 +10,12 @@ from typing import Callable
 class Node:
     def __init__(self, name: str, voltage: int = 5):
         self.name = name
-        self.value = False # could have cyclic circuits like SR Latch, so sim cold start.
+        self.value = (
+            False  # could have cyclic circuits like SR Latch, so sim cold start.
+        )
         self.voltage = voltage
 
-    def set(self, value: bool | None): # debate on removing `| None`
+    def set(self, value: bool | None):  # debate on removing `| None`
         # cast to bool since it's possible that a Node is passed in due to how reduce works
         self.value = bool(value)
 
@@ -25,7 +27,14 @@ class Node:
 
 
 class Operation:
-    def __init__(self, name: str, type: str, inputs: list[Node], output: Node, op: Callable[[Node], bool]):
+    def __init__(
+        self,
+        name: str,
+        type: str,
+        inputs: list[Node],
+        output: Node,
+        op: Callable[[Node], bool],
+    ):
         self.name = name
         self.type = type
         self.inputs = inputs
@@ -41,7 +50,7 @@ class Operation:
         if self.output.value is not None:
             old_value = bool(self.output)
         else:
-            old_value = not new_value # changed = True
+            old_value = not new_value  # changed = True
 
         self.output.set(new_value)
         return old_value ^ new_value
@@ -69,14 +78,16 @@ def _nor(inputs: list[Node]) -> bool:
 def _not(inputs: list[Node]) -> bool:
     return not inputs[0]
 
+
 class ScircError(Exception):
     pass
 
+
 def main():
     proc_args = parser.parse_args()
-    nodal_map: dict[str, Node] = {} # name: Node
-    op_map: dict[str, Operation] = {} # name: Op
-    dependency_dict: dict[Node, set[Operation]] = {} # Node: [Ops], input: ops
+    nodal_map: dict[str, Node] = {}  # name: Node
+    op_map: dict[str, Operation] = {}  # name: Op
+    dependency_dict: dict[Node, set[Operation]] = {}  # Node: [Ops], input: ops
     reserved_keywords = {"clk", "clock"}
     input_set = set()
     input_name_set = set()
@@ -100,7 +111,9 @@ def main():
                 if kw in {"WIRE", "WIRES", "NODE", "NODES"}:
                     for wire in args:
                         if wire in reserved_keywords:
-                            raise ScircError(f"{wire} is a reserved keyword and cannot be declared as a node.")
+                            raise ScircError(
+                                f"{wire} is a reserved keyword and cannot be declared as a node."
+                            )
                         new_node = Node(f"{file_prefix}_{wire}")
                         nodal_map[f"{file_prefix}_{wire}"] = new_node
                         input_set.add(new_node)
@@ -119,9 +132,11 @@ def main():
                     output, *inputs = args
                     op_inputs = [nodal_map[f"{file_prefix}_{n}"] for n in inputs]
                     op_output = nodal_map[f"{file_prefix}_{output}"]
-                    input_set.discard(op_output) # is an output value
+                    input_set.discard(op_output)  # is an output value
                     op_name = f"{file_prefix}_{kw}_{next(unique_counter)}"
-                    op_map[op_name] = Operation(op_name, kw, op_inputs, op_output, defined_ops[kw])
+                    op_map[op_name] = Operation(
+                        op_name, kw, op_inputs, op_output, defined_ops[kw]
+                    )
                     for node in op_inputs:
                         dependency_dict[node].add(op_map[op_name])
 
@@ -136,16 +151,19 @@ def main():
     seen = set()
     depth_counter = 0
     while len(execution_queue) > 0:
-            cur = execution_queue.popleft()
-            if any(n.value is None for n in cur.inputs):
-                execution_queue.append(cur) # delay exec until inputs are known
-                continue
-            if cur.execute() or cur not in seen:
-                execution_queue.extend(dependency_dict[cur.output])
-                seen.add(cur)
-            depth_counter += 1
-            if depth_counter >= proc_args.max_depth:
-                raise ScircError(f"Exceeded maximum allowed depth. (Currently: {proc_args.max_depth})")
+        cur = execution_queue.popleft()
+        if any(n.value is None for n in cur.inputs):
+            execution_queue.append(cur)  # delay exec until inputs are known
+            continue
+        if cur.execute() or cur not in seen:
+            execution_queue.extend(dependency_dict[cur.output])
+            seen.add(cur)
+        depth_counter += 1
+        if depth_counter >= proc_args.max_depth:
+            raise ScircError(
+                f"Exceeded maximum allowed depth. (Currently: {proc_args.max_depth})"
+            )
+
     # TODO: optimize by delaying execution of duplicate nodes on the execution queue(?)
     # validate above logic
     while True:
@@ -153,13 +171,15 @@ def main():
         while len(execution_queue) > 0:
             cur = execution_queue.popleft()
             if any(n.value is None for n in cur.inputs):
-                execution_queue.append(cur) # delay exec until inputs are known
+                execution_queue.append(cur)  # delay exec until inputs are known
                 continue
             if cur.execute():
                 execution_queue.extend(dependency_dict[cur.output])
             depth_counter += 1
             if depth_counter >= proc_args.max_depth:
-                raise ScircError(f"Exceeded maximum allowed depth. (Currently: {proc_args.max_depth})")
+                raise ScircError(
+                    f"Exceeded maximum allowed depth. (Currently: {proc_args.max_depth})"
+                )
         user_input = input("> ").strip().lower()
         if user_input in {"exit", "quit", "q"}:
             break
@@ -170,7 +190,9 @@ def main():
         elif user_input in {"help", "h"}:
             print("Available Commands:")
             print("show (s): \tShow logic level for currently probed nodes")
-            print("show all (sa): \tShow logic level for all nodes (Potentially long output)")
+            print(
+                "show all (sa): \tShow logic level for all nodes (Potentially long output)"
+            )
             print("quit (q): \tExit the program")
         elif user_input.startswith("set"):
             _, node, val = user_input.split(" ")
@@ -195,7 +217,7 @@ def main():
 
 
 parser = argparse.ArgumentParser(
-    description="Small, extensible circuit design and simulation language",
+    description="A Small, extensible circuit design and simulation language",
     epilog="",
 )
 group = parser.add_mutually_exclusive_group(required=True)
