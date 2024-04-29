@@ -3,17 +3,18 @@ import glob
 import argparse
 import functools
 import itertools
+from collections import deque
 from typing import Callable
 
 
 class Node:
     def __init__(self, name: str, voltage: int = 5):
         self.name = name
-        self.value = False  # default low should be okay...
+        self.value = False # could have cyclic circuits like SR Latch, so sim cold start.
         self.voltage = voltage
 
-    def set(self, value: bool | None):
-        # cast to bool since it's possible that a Node is passed in due to reduce
+    def set(self, value: bool | None): # debate on removing `| None`
+        # cast to bool since it's possible that a Node is passed in due to how reduce works
         self.value = bool(value)
 
     def __repr__(self):
@@ -34,10 +35,14 @@ class Operation:
     def reassign(self, op: Callable[[Node], bool]):
         self.op = op
 
-    def compute(self) -> bool:
-        new_value = self.op(self.inputs)
+    def execute(self) -> bool:
+        new_value = bool(self.op(self.inputs))
         # cast for clarity
-        old_value = bool(self.output)
+        if self.output.value is not None:
+            old_value = bool(self.output)
+        else:
+            old_value = not new_value # changed = True
+
         self.output.set(new_value)
         return old_value ^ new_value
 
@@ -64,19 +69,25 @@ def _nor(inputs: list[Node]) -> bool:
 def _not(inputs: list[Node]) -> bool:
     return not inputs[0]
 
+class ScircError(Exception):
+    pass
 
 def main():
-    args = parser.parse_args()
-    nodal_map = {}
-    op_map = {}
+    proc_args = parser.parse_args()
+    nodal_map: dict[str, Node] = {} # name: Node
+    op_map: dict[str, Operation] = {} # name: Op
+    dependency_dict: dict[Node, set[Operation]] = {} # Node: [Ops], input: ops
+    reserved_keywords = {"clk", "clock"}
+    input_set = set()
+    input_name_set = set()
     # network_map = {}
     probe_list = []
     defined_ops = {"AND": _and, "OR": _or, "NAND": _nand, "NOR": _nor, "NOT": _not}
-    if args.all_files:
+    if proc_args.all_files:
         scirc_files = glob.glob("*.scirc")
     else:
-        print(args.filenames)
-        scirc_files = args.filenames
+        print(proc_args.filenames)
+        scirc_files = proc_args.filenames
     unique_counter = itertools.count()
 
     # load in each file, mangle such that we can do duplication and linkage of components
@@ -88,10 +99,14 @@ def main():
                 kw, *args = line.rstrip().split(" ")
                 if kw in {"WIRE", "WIRES", "NODE", "NODES"}:
                     for wire in args:
-                        nodal_map[f"{file_prefix}_{wire}"] = Node(
-                            f"{file_prefix}_{wire}"
-                        )
-                elif kw == "MEASURE":
+                        if wire in reserved_keywords:
+                            raise ScircError(f"{wire} is a reserved keyword and cannot be declared as a node.")
+                        new_node = Node(f"{file_prefix}_{wire}")
+                        nodal_map[f"{file_prefix}_{wire}"] = new_node
+                        input_set.add(new_node)
+                        input_name_set.add(f"{file_prefix}_{wire}")
+                        dependency_dict[new_node] = set()
+                elif kw in {"PROBE", "MEASURE"}:
                     for wire in args:
                         probe_list.append(nodal_map[f"{file_prefix}_{wire}"])
                 elif kw == "IMPORT":
@@ -104,16 +119,79 @@ def main():
                     output, *inputs = args
                     op_inputs = [nodal_map[f"{file_prefix}_{n}"] for n in inputs]
                     op_output = nodal_map[f"{file_prefix}_{output}"]
+                    input_set.discard(op_output) # is an output value
                     op_name = f"{file_prefix}_{kw}_{next(unique_counter)}"
                     op_map[op_name] = Operation(op_name, kw, op_inputs, op_output, defined_ops[kw])
-    print(op_map)
+                    for node in op_inputs:
+                        dependency_dict[node].add(op_map[op_name])
 
     runtime_ops = {"AUTOEXEC": True}
+    execution_queue: deque[Operation] = deque()
+    for node in input_set:
+        if node.value is None:
+            node.set(False)
+        execution_queue.extend(dependency_dict[node])
+
+    # do initial computation of the whole circuit to establish ground state.
+    seen = set()
+    depth_counter = 0
+    while len(execution_queue) > 0:
+            cur = execution_queue.popleft()
+            if any(n.value is None for n in cur.inputs):
+                execution_queue.append(cur) # delay exec until inputs are known
+                continue
+            if cur.execute() or cur not in seen:
+                execution_queue.extend(dependency_dict[cur.output])
+                seen.add(cur)
+            depth_counter += 1
+            if depth_counter >= proc_args.max_depth:
+                raise ScircError(f"Exceeded maximum allowed depth. (Currently: {proc_args.max_depth})")
+    # TODO: optimize by delaying execution of duplicate nodes on the execution queue(?)
+    # validate above logic
     while True:
-        print(not nodal_map[f"{file_prefix}_a"])
-        op_map["or_OR_0"].compute()
-        print(op_map)
-        break
+        depth_counter = 0
+        while len(execution_queue) > 0:
+            cur = execution_queue.popleft()
+            if any(n.value is None for n in cur.inputs):
+                execution_queue.append(cur) # delay exec until inputs are known
+                continue
+            if cur.execute():
+                execution_queue.extend(dependency_dict[cur.output])
+            depth_counter += 1
+            if depth_counter >= proc_args.max_depth:
+                raise ScircError(f"Exceeded maximum allowed depth. (Currently: {proc_args.max_depth})")
+        user_input = input("> ").strip().lower()
+        if user_input in {"exit", "quit", "q"}:
+            break
+        elif user_input in {"show", "s"}:
+            print(probe_list)
+        elif user_input in {"show all", "sa"}:
+            print({n for n in nodal_map.values()})
+        elif user_input in {"help", "h"}:
+            print("Available Commands:")
+            print("show (s): \tShow logic level for currently probed nodes")
+            print("show all (sa): \tShow logic level for all nodes (Potentially long output)")
+            print("quit (q): \tExit the program")
+        elif user_input.startswith("set"):
+            _, node, val = user_input.split(" ")
+            if node not in nodal_map:
+                print("Node is not known.")
+                continue
+            if node not in input_name_set:
+                print("Node is Not an input node.")
+                continue
+            if val.lower() in {"1", "true"}:
+                s_node = nodal_map[node]
+                s_node.set(True)
+                execution_queue.extend(dependency_dict[s_node])
+            elif val.lower() in {"0", "false"}:
+                s_node = nodal_map[node]
+                s_node.set(False)
+                execution_queue.extend(dependency_dict[s_node])
+            else:
+                print("Unknown set value")
+        else:
+            print("Unknown Command")
 
 
 parser = argparse.ArgumentParser(
@@ -144,8 +222,8 @@ parser.add_argument(
 )
 parser.add_argument(
     "-d",
-    "--depth",
-    dest="dep_loop",
+    "--max-depth",
+    dest="max_depth",
     action="store",
     metavar="N",
     default=1000,

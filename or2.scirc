@@ -1,0 +1,5 @@
+WIRE a b c d
+NOT b a
+OR d b c
+EXPORT a c d
+PROBE d

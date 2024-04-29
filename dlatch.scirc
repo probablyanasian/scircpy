@@ -1,0 +1,7 @@
+WIRE d e notd nots notr q notq
+NOT notd d
+NAND nots d e
+NAND notr e notd
+NAND q nots notq
+NAND notq q notr
+EXPORT d e q notq
