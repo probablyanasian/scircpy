@@ -281,16 +281,11 @@ def main():
         # load in file, mangle such that we can do duplication and linkage of components
         scirc_parse(gnm, proc_args.filename)
 
-    runtime_ops = {"AUTOEXEC": True}
     execution_queue: deque[Operation] = deque()
     for node in gnm.input_set:
         if node.value is None:
             node.set(False)
         execution_queue.extend(gnm.dependency_dict[node])
-
-    print(gnm.input_set)
-    print(f"{[n.name for n in execution_queue]=}")
-    print(gnm.dependency_dict)
 
     # do initial computation of the whole circuit to establish ground state.
     seen = set()
@@ -311,6 +306,8 @@ def main():
 
     # TODO: optimize by delaying execution of duplicate nodes on the execution queue(?)
     # validate above logic
+    runtime_ops = {"AUTOEXEC": True}
+    runtime_groups = {}
     while True:
         depth_counter = 0
         while len(execution_queue) > 0:
@@ -382,6 +379,49 @@ def main():
                 execution_queue.extend(gnm.dependency_dict[s_node])
             else:
                 print("Unknown set value")
+        elif user_input.startswith("group create"):
+            input_split = user_input[13:].split(" ")
+            if len(input_split) <= 2:
+                print("Invalid number of inputs")
+                continue
+            name, *nodes = input_split
+            if not all(map(lambda x: x in gnm.nodal_map, nodes)):
+                print("Did not recognize a node. Did you spell it correctly?")
+                continue
+            runtime_groups[name] = [gnm.nodal_map[n] for n in nodes]
+            print(f"Successfully created group {name} with members: {runtime_groups[name]}")
+        elif user_input.startswith("group set"):
+            input_split = user_input[10:].split(" ")
+            if len(input_split) <= 2:
+                print("Invalid number of inputs")
+                continue
+            group_name, fmt, value = input_split
+            if fmt.upper() in {"BITS", "BIT", "B"}:
+                if len(value) != len(runtime_groups[group_name]):
+                    print(f"Bit length incompatable with group: {runtime_groups[group_name]}")
+                    continue
+                group = runtime_groups[group_name]
+                for idx in range(len(value)):
+                    s_node = group[idx]
+                    s_node.set(bool(int(value[idx])))
+                    execution_queue.extend(gnm.dependency_dict[s_node])
+            elif fmt.upper() in {"HEX", "H"}:
+                if len(value)*4 < len(runtime_groups[group_name]):
+                    print(f"Bit length incompatable with group: {runtime_groups[group_name]}")
+                    continue
+                h_size = len(value) * 4
+                value = (bin(int(value, 16))[2:]).zfill(h_size)
+                group = runtime_groups[group_name]
+                for idx in range(len(value)):
+                    s_node = group[idx]
+                    s_node.set(bool(int(value[idx])))
+                    execution_queue.extend(gnm.dependency_dict[s_node])
+        elif user_input.startswith("group show"):
+            group_name = user_input[11:]
+            if group_name not in runtime_groups:
+                print("Unknown group name provided.")
+                continue
+            print(f"{group_name}: {runtime_groups[group_name]}")
         else:
             print("Unknown Command")
 
