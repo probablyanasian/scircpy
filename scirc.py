@@ -105,6 +105,7 @@ class NetworkMap:
         self.input_set = set()
         self.input_name_set = set()
         self.extended_ops = {}
+        self.exported = []
         self.unique_counter = itertools.count()
 
 
@@ -147,7 +148,8 @@ def scirc_parse(net: NetworkMap, filename: str) -> None:
                     import_name = args[2].upper()
                 
             elif kw == "EXPORT":
-                pass
+                for wire in wires:
+                    net.exported.append(net.nodal_map[f"{file_prefix}_{wire}"])
             elif (
                 kw.upper() in defined_ops or kw.upper() in net.extended_ops
             ):  # begin definition of logic gates. TODO: make this extensible
@@ -155,6 +157,7 @@ def scirc_parse(net: NetworkMap, filename: str) -> None:
                 op_inputs = [net.nodal_map[f"{file_prefix}_{n}"] for n in inputs]
                 op_output = net.nodal_map[f"{file_prefix}_{output}"]
                 net.input_set.discard(op_output)  # is an output value
+                net.input_name_set.discard(op_output.name)
                 op_name = f"{file_prefix}_{kw}_{next(net.unique_counter)}"
                 net.op_map[op_name] = Operation(
                     op_name, kw, op_inputs, op_output, defined_ops[kw]
@@ -176,14 +179,14 @@ def main():
         # load in file, mangle such that we can do duplication and linkage of components
         scirc_parse(gnm, proc_args.filename)
 
-    print(gnm.dependency_dict)
-
     runtime_ops = {"AUTOEXEC": True}
     execution_queue: deque[Operation] = deque()
     for node in gnm.input_set:
         if node.value is None:
             node.set(False)
         execution_queue.extend(gnm.dependency_dict[node])
+
+    print(gnm.input_name_set)
 
     # do initial computation of the whole circuit to establish ground state.
     seen = set()
@@ -232,6 +235,24 @@ def main():
                 "show all (sa): \tShow logic level for all nodes (Potentially long output)"
             )
             print("quit (q): \tExit the program")
+        elif user_input.startswith("fset"):
+            input_split = user_input.split(" ")
+            if len(input_split) != 3:
+                print("Invalid number of inputs")
+            _, node, val = input_split
+            if node not in gnm.nodal_map:
+                print("Node is not known.")
+                continue
+            if val.lower() in {"1", "true"}:
+                s_node = gnm.nodal_map[node]
+                s_node.set(True)
+                execution_queue.extend(gnm.dependency_dict[s_node])
+            elif val.lower() in {"0", "false"}:
+                s_node = gnm.nodal_map[node]
+                s_node.set(False)
+                execution_queue.extend(gnm.dependency_dict[s_node])
+            else:
+                print("Unknown set value")
         elif user_input.startswith("set"):
             input_split = user_input.split(" ")
             if len(input_split) != 3:
