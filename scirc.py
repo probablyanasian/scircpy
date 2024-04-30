@@ -389,7 +389,9 @@ def main():
                 print("Did not recognize a node. Did you spell it correctly?")
                 continue
             runtime_groups[name] = [gnm.nodal_map[n] for n in nodes]
-            print(f"Successfully created group {name} with members: {runtime_groups[name]}")
+            print(
+                f"Successfully created group {name} with members: {runtime_groups[name]}"
+            )
         elif user_input.startswith("group set"):
             input_split = user_input[10:].split(" ")
             if len(input_split) <= 2:
@@ -398,7 +400,9 @@ def main():
             group_name, fmt, value = input_split
             if fmt.upper() in {"BITS", "BIT", "B"}:
                 if len(value) != len(runtime_groups[group_name]):
-                    print(f"Bit length incompatable with group: {runtime_groups[group_name]}")
+                    print(
+                        f"Bit length incompatable with group: {runtime_groups[group_name]}"
+                    )
                     continue
                 group = runtime_groups[group_name]
                 for idx in range(len(value)):
@@ -406,8 +410,10 @@ def main():
                     s_node.set(bool(int(value[idx])))
                     execution_queue.extend(gnm.dependency_dict[s_node])
             elif fmt.upper() in {"HEX", "H"}:
-                if len(value)*4 < len(runtime_groups[group_name]):
-                    print(f"Bit length incompatable with group: {runtime_groups[group_name]}")
+                if len(value) * 4 < len(runtime_groups[group_name]):
+                    print(
+                        f"Bit length incompatable with group: {runtime_groups[group_name]}"
+                    )
                     continue
                 h_size = len(value) * 4
                 value = (bin(int(value, 16))[2:]).zfill(h_size)
