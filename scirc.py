@@ -94,84 +94,80 @@ class NetworkMap():
         self.parent_chain = parent_chain.copy() # strings are primitives so this is okay
         self.parent_chain.add(name)
         self.name = name
-        nodal_map: dict[str, Node] = {}  # name: Node
-        op_map: dict[str, Operation] = {}  # name: Op
-        dependency_dict: dict[Node, set[Operation]] = {}  # Node: [Ops], input: ops
-        input_set = set()
-        input_name_set = set()
-        subnetwork = {}
+        self.nodal_map: dict[str, Node] = {}  # name: Node
+        self.op_map: dict[str, Operation] = {}  # name: Op
+        self.dependency_dict: dict[Node, set[Operation]] = {}  # Node: [Ops], input: ops
+        self.input_set = set()
+        self.input_name_set = set()
+        self.extended_ops = {}
+        self.unique_counter = itertools.count()
+
+def scirc_parse(net: NetworkMap, filename: str) -> None:
+    defined_ops = {"AND": _and, "OR": _or, "NAND": _nand, "NOR": _nor, "NOT": _not}
+    reserved_keywords = {"clk", "clock"}
+    file_prefix = filename.rsplit(".", 1)[0]
+    print(f">>> loading scirc file: {filename}")
+    with open(filename, "r") as inf:
+        for line in inf:
+            kw, *args = line.rstrip().split(" ")
+            if kw in {"WIRE", "WIRES", "NODE", "NODES"}:
+                for wire in args:
+                    if wire in reserved_keywords:
+                        raise ScircError(
+                            f"{wire} is a reserved keyword and cannot be declared as a node."
+                        )
+                    new_node = Node(f"{file_prefix}_{wire}")
+                    net.nodal_map[f"{file_prefix}_{wire}"] = new_node
+                    net.input_set.add(new_node)
+                    net.input_name_set.add(f"{file_prefix}_{wire}")
+                    net.dependency_dict[new_node] = set()
+            elif kw in {"PROBE", "MEASURE"}:
+                fmt, *wires = args
+                if fmt in {"BITS", "BIT", "B"}:
+                    for wire in wires:
+                        net.probe_list.append(net.nodal_map[f"{file_prefix}_{wire}"])
+                elif fmt in {"HEX", "H"}:
+                    net.probe_list.append(HexProbe(
+                            [net.nodal_map[f"{file_prefix}_{wire}"] for wire in wires]
+                        )
+                    )
+            elif kw == "IMPORT":
+                pass
+            elif kw == "EXPORT":
+                pass
+            elif (
+                kw.upper() in defined_ops or kw.upper() in net.extended_ops
+            ):  # begin definition of logic gates. TODO: make this extensible
+                output, *inputs = args
+                op_inputs = [net.nodal_map[f"{file_prefix}_{n}"] for n in inputs]
+                op_output = net.nodal_map[f"{file_prefix}_{output}"]
+                net.input_set.discard(op_output)  # is an output value
+                op_name = f"{file_prefix}_{kw}_{next(net.unique_counter)}"
+                net.op_map[op_name] = Operation(
+                    op_name, kw, op_inputs, op_output, defined_ops[kw]
+                )
+                for node in op_inputs:
+                    net.dependency_dict[node].add(net.op_map[op_name])
 
 def main():
     proc_args = parser.parse_args()
-    gnm = NetworkMap(proc_args.filename)
-    nodal_map: dict[str, Node] = {}  # name: Node
-    op_map: dict[str, Operation] = {}  # name: Op
-    dependency_dict: dict[Node, set[Operation]] = {}  # Node: [Ops], input: ops
-    reserved_keywords = {"clk", "clock"}
-    input_set = set()
-    input_name_set = set()
-    probe_list = []
-    defined_ops = {"AND": _and, "OR": _or, "NAND": _nand, "NOR": _nor, "NOT": _not}
+    gnm = NetworkMap(proc_args.filename, set())
+    
     extended_ops = {}
     if proc_args.all_files:
-        scirc_files = glob.glob("*.scirc")
+        scirc_file = glob.glob("*.scirc")
+        raise ScircError("Unimplemented Error: Not supported yet.")
     else:
         print(proc_args.filename)
-        scirc_files = proc_args.filename
-    unique_counter = itertools.count()
-
-    # load in each file, mangle such that we can do duplication and linkage of components
-    for file in scirc_files:
-        file_prefix = file.rsplit(".", 1)[0]
-        print(f">>> loading scirc file: {file}")
-        with open(file, "r") as inf:
-            for line in inf:
-                kw, *args = line.rstrip().split(" ")
-                if kw in {"WIRE", "WIRES", "NODE", "NODES"}:
-                    for wire in args:
-                        if wire in reserved_keywords:
-                            raise ScircError(
-                                f"{wire} is a reserved keyword and cannot be declared as a node."
-                            )
-                        new_node = Node(f"{file_prefix}_{wire}")
-                        nodal_map[f"{file_prefix}_{wire}"] = new_node
-                        input_set.add(new_node)
-                        input_name_set.add(f"{file_prefix}_{wire}")
-                        dependency_dict[new_node] = set()
-                elif kw in {"PROBE", "MEASURE"}:
-                    fmt, *wires = args
-                    if fmt in {"BITS", "BIT", "B"}:
-                        for wire in wires:
-                            probe_list.append(nodal_map[f"{file_prefix}_{wire}"])
-                    elif fmt in {"HEX", "H"}:
-                        probe_list.append(HexProbe(
-                                [nodal_map[f"{file_prefix}_{wire}"] for wire in wires]
-                            )
-                        )
-                elif kw == "IMPORT":
-                    pass
-                elif kw == "EXPORT":
-                    pass
-                elif (
-                    kw.upper() in defined_ops or kw.upper() in extended_ops
-                ):  # begin definition of logic gates. TODO: make this extensible
-                    output, *inputs = args
-                    op_inputs = [nodal_map[f"{file_prefix}_{n}"] for n in inputs]
-                    op_output = nodal_map[f"{file_prefix}_{output}"]
-                    input_set.discard(op_output)  # is an output value
-                    op_name = f"{file_prefix}_{kw}_{next(unique_counter)}"
-                    op_map[op_name] = Operation(
-                        op_name, kw, op_inputs, op_output, defined_ops[kw]
-                    )
-                    for node in op_inputs:
-                        dependency_dict[node].add(op_map[op_name])
+        # load in file, mangle such that we can do duplication and linkage of components
+        scirc_parse(gnm, proc_args.filename)
 
     runtime_ops = {"AUTOEXEC": True}
     execution_queue: deque[Operation] = deque()
-    for node in input_set:
+    for node in gnm.input_set:
         if node.value is None:
             node.set(False)
-        execution_queue.extend(dependency_dict[node])
+        execution_queue.extend(gnm.dependency_dict[node])
 
     # do initial computation of the whole circuit to establish ground state.
     seen = set()
@@ -182,7 +178,7 @@ def main():
             execution_queue.append(cur)  # delay exec until inputs are known
             continue
         if cur.execute() or cur not in seen:
-            execution_queue.extend(dependency_dict[cur.output])
+            execution_queue.extend(gnm.dependency_dict[cur.output])
             seen.add(cur)
         depth_counter += 1
         if depth_counter >= proc_args.max_depth:
@@ -200,7 +196,7 @@ def main():
                 execution_queue.append(cur)  # delay exec until inputs are known
                 continue
             if cur.execute():
-                execution_queue.extend(dependency_dict[cur.output])
+                execution_queue.extend(gnm.dependency_dict[cur.output])
             depth_counter += 1
             if depth_counter >= proc_args.max_depth:
                 raise ScircError(
@@ -210,9 +206,9 @@ def main():
         if user_input in {"exit", "quit", "q"}:
             break
         elif user_input in {"show", "s"}:
-            print(probe_list)
+            print(gnm.probe_list)
         elif user_input in {"show all", "sa"}:
-            print({n for n in nodal_map.values()})
+            print({n for n in gnm.nodal_map.values()})
         elif user_input in {"help", "h"}:
             print("Available Commands:")
             print("show (s): \tShow logic level for currently probed nodes")
@@ -221,21 +217,24 @@ def main():
             )
             print("quit (q): \tExit the program")
         elif user_input.startswith("set"):
-            _, node, val = user_input.split(" ")
-            if node not in nodal_map:
+            input_split = user_input.split(" ")
+            if len(input_split) != 3:
+                print("Invalid number of inputs")
+            _, node, val = input_split
+            if node not in gnm.nodal_map:
                 print("Node is not known.")
                 continue
-            if node not in input_name_set:
+            if node not in gnm.input_name_set:
                 print("Node is Not an input node.")
                 continue
             if val.lower() in {"1", "true"}:
-                s_node = nodal_map[node]
+                s_node = gnm.nodal_map[node]
                 s_node.set(True)
-                execution_queue.extend(dependency_dict[s_node])
+                execution_queue.extend(gnm.dependency_dict[s_node])
             elif val.lower() in {"0", "false"}:
-                s_node = nodal_map[node]
+                s_node = gnm.nodal_map[node]
                 s_node.set(False)
-                execution_queue.extend(dependency_dict[s_node])
+                execution_queue.extend(gnm.dependency_dict[s_node])
             else:
                 print("Unknown set value")
         else:
