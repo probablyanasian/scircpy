@@ -1,0 +1,4 @@
+WIRE a b o c
+EXPORT a b o c
+XOR o a b
+AND c a b

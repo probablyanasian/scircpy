@@ -79,6 +79,10 @@ def _not(inputs: list[Node]) -> bool:
     return not inputs[0]
 
 
+def _xor(inputs: list[Node]) -> bool:
+    return sum(bool(node) for node in inputs) == 1
+
+
 def _buf(inputs: list[Node]) -> bool:
     return inputs[0]
 
@@ -125,10 +129,20 @@ class NetworkMap:
 
 
 def scirc_parse(net: NetworkMap, filename: str) -> None:
-    defined_ops = {"AND": _and, "OR": _or, "NAND": _nand, "NOR": _nor, "NOT": _not, "BUF": _buf}
+    defined_ops = {
+        "AND": _and,
+        "OR": _or,
+        "NAND": _nand,
+        "NOR": _nor,
+        "NOT": _not,
+        "XOR": _xor,
+        "BUF": _buf,
+    }
     reserved_keywords = {"clk", "clock"}
     file_prefix = filename.rsplit(".", 1)[0]
-    print(f">>> Loading scirc file: {filename} <> Parent Chain: {net.parent_chain_list}")
+    print(
+        f">>> Loading scirc file: {filename} <> Parent Chain: {net.parent_chain_list}"
+    )
     with open(filename, "r") as inf:
         for line in inf:
             kw, *args = line.rstrip().split(" ")
@@ -233,7 +247,7 @@ def scirc_parse(net: NetworkMap, filename: str) -> None:
                         del subnet.dependency_dict[exp_node]
                         del subnet.nodal_map[exp_node.name]
                         del exp_node
-                    else: # node is an output.
+                    else:  # node is an output.
                         mod_op = subnet.exported_output[exp_node]
                         mod_op.output = arg_node
                         net.dependency_dict[arg_node] = subnet.dependency_dict[exp_node]
@@ -250,7 +264,9 @@ def scirc_parse(net: NetworkMap, filename: str) -> None:
                 net.dependency_dict.update(subnet.dependency_dict)
                 net.nodal_map.update(subnet.nodal_map)
                 net.op_map.update(subnet.op_map)
-    print(f"<<< Done loading {filename}")                        
+            else:
+                raise ScircError(f"Unknown Keyword {kw}")
+    print(f"<<< Done loading {filename}")
 
 
 def main():
@@ -273,7 +289,7 @@ def main():
         execution_queue.extend(gnm.dependency_dict[node])
 
     print(gnm.input_set)
-    print(execution_queue)
+    print(f"{[n.name for n in execution_queue]=}")
     print(gnm.dependency_dict)
 
     # do initial computation of the whole circuit to establish ground state.
