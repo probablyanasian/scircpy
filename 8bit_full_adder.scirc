@@ -1,0 +1,26 @@
+WIRE Binvert
+WIRE a0 a1 a2 a3 a4 a5 a6 a7
+WIRE b0 b1 b2 b3 b4 b5 b6 b7
+WIRE c0 c1 c2 c3 c4 c5 c6 c7
+WIRE s0 s1 s2 s3 s4 s5 s6 s7
+WIRE bi0 bi1 bi2 bi3 bi4 bi5 bi6 bi7
+IMPORT full_adder.scirc as FADDER
+XOR bi0 Binvert b0
+XOR bi1 Binvert b1
+XOR bi2 Binvert b2
+XOR bi3 Binvert b3
+XOR bi4 Binvert b4
+XOR bi5 Binvert b5
+XOR bi6 Binvert b6
+XOR bi7 Binvert b7
+FADDER a0 bi0 Binvert s0 c0
+FADDER a1 bi1 c0 s1 c1
+FADDER a2 bi2 c0 s2 c2
+FADDER a3 bi3 c0 s3 c3
+FADDER a4 bi4 c0 s4 c4
+FADDER a5 bi5 c0 s5 c5
+FADDER a6 bi6 c0 s6 c6
+FADDER a7 bi7 c0 s7 c7
+GROUP inp_a a7 a6 a5 a4 a3 a2 a1 a0
+GROUP inp_b b7 b6 b5 b4 b3 b2 b1 b0
+PROBE HEX s7 s6 s5 s4 s3 s2 s1 s0

@@ -268,6 +268,9 @@ def scirc_parse(net: NetworkMap, filename: str) -> None:
                         if node in replaced_dict:
                             op.inputs.remove(node)
                             op.inputs.append(replaced_dict[node])
+                for node in subnet.exported_output:
+                    if node in replaced_dict:
+                        net.exported_output[replaced_dict[node]] = subnet.exported_output[node]
                 net.dependency_dict.update(subnet.dependency_dict)
                 net.nodal_map.update(subnet.nodal_map)
                 net.op_map.update(subnet.op_map)
@@ -344,6 +347,16 @@ def main():
             print(gnm.probe_list)
         elif user_input in {"show all", "sa"}:
             print({n for n in gnm.nodal_map.values()})
+        elif user_input.startswith("probe"):
+            input_split = user_input.split(" ")
+            if len(input_split) != 2:
+                print("Invalid number of inputs")
+                continue
+            _, node = input_split
+            if node not in gnm.nodal_map:
+                print("Node is not known.")
+                continue
+            print(f"{gnm.nodal_map[node]=}")
         elif user_input.startswith("fset"):
             input_split = user_input.split(" ")
             if len(input_split) != 3:
