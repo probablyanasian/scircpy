@@ -82,16 +82,20 @@ def _not(inputs: list[Node]) -> bool:
 class ScircError(Exception):
     pass
 
-class HexProbe():
+
+class HexProbe:
     def __init__(self, wires: list[Node]) -> None:
         self.wires = wires
 
     def __repr__(self) -> str:
         return hex(int("".join(["1" if bool(n) else "0" for n in self.wires]), 2))
 
-class NetworkMap():
+
+class NetworkMap:
     def __init__(self, name, parent_chain: set[str]) -> None:
-        self.parent_chain = parent_chain.copy() # strings are primitives so this is okay
+        self.parent_chain = (
+            parent_chain.copy()
+        )  # strings are primitives so this is okay
         self.parent_chain.add(name)
         self.name = name
         self.nodal_map: dict[str, Node] = {}  # name: Node
@@ -101,6 +105,7 @@ class NetworkMap():
         self.input_name_set = set()
         self.extended_ops = {}
         self.unique_counter = itertools.count()
+
 
 def scirc_parse(net: NetworkMap, filename: str) -> None:
     defined_ops = {"AND": _and, "OR": _or, "NAND": _nand, "NOR": _nor, "NOT": _not}
@@ -127,7 +132,8 @@ def scirc_parse(net: NetworkMap, filename: str) -> None:
                     for wire in wires:
                         net.probe_list.append(net.nodal_map[f"{file_prefix}_{wire}"])
                 elif fmt in {"HEX", "H"}:
-                    net.probe_list.append(HexProbe(
+                    net.probe_list.append(
+                        HexProbe(
                             [net.nodal_map[f"{file_prefix}_{wire}"] for wire in wires]
                         )
                     )
@@ -149,10 +155,11 @@ def scirc_parse(net: NetworkMap, filename: str) -> None:
                 for node in op_inputs:
                     net.dependency_dict[node].add(net.op_map[op_name])
 
+
 def main():
     proc_args = parser.parse_args()
     gnm = NetworkMap(proc_args.filename, set())
-    
+
     extended_ops = {}
     if proc_args.all_files:
         scirc_file = glob.glob("*.scirc")
