@@ -1,0 +1,4 @@
+IMPORT dlatch.scirc AS dlatch
+WIRE a b c d
+dlatch a b c d
+PROBE c

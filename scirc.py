@@ -68,11 +68,11 @@ def _or(inputs: list[Node]) -> bool:
 
 
 def _nand(inputs: list[Node]) -> bool:
-    return not functools.reduce(lambda x, y: x and y, inputs[1:], inputs[0])
+    return not _and(inputs)
 
 
 def _nor(inputs: list[Node]) -> bool:
-    return not functools.reduce(lambda x, y: x or y, inputs[1:], inputs[0])
+    return not _nor(inputs)
 
 
 def _not(inputs: list[Node]) -> bool:
@@ -84,19 +84,20 @@ class ScircError(Exception):
 
 
 class HexProbe:
-    def __init__(self, wires: list[Node]) -> None:
+    def __init__(self, name: str, wires: list[Node]) -> None:
         self.wires = wires
+        self.name = name
 
     def __repr__(self) -> str:
-        return hex(int("".join(["1" if bool(n) else "0" for n in self.wires]), 2))
+        return self.name + hex(int("".join(["1" if bool(n) else "0" for n in self.wires]), 2))
 
 
 class NetworkMap:
     def __init__(self, name, parent_chain: set[str]) -> None:
-        self.parent_chain = (
-            parent_chain.copy()
-        )  # strings are primitives so this is okay
+        # strings are primitives so this is okay
+        self.parent_chain = parent_chain.copy()
         self.parent_chain.add(name)
+
         self.name = name
         self.nodal_map: dict[str, Node] = {}  # name: Node
         self.op_map: dict[str, Operation] = {}  # name: Op
@@ -134,11 +135,17 @@ def scirc_parse(net: NetworkMap, filename: str) -> None:
                 elif fmt in {"HEX", "H"}:
                     net.probe_list.append(
                         HexProbe(
+                            f"{file_prefix}_{''.join(wires)}",
                             [net.nodal_map[f"{file_prefix}_{wire}"] for wire in wires]
                         )
                     )
             elif kw == "IMPORT":
-                pass
+                if len(args) == 1 or len(args) != 3:
+                    ScircError(f"{line} is an invalid import statement. Expected either one or 'AS' arg")
+                import_name = args[0].rsplit(".", 1).upper()
+                if len(args == 3):
+                    import_name = args[2].upper()
+                
             elif kw == "EXPORT":
                 pass
             elif (
@@ -168,6 +175,8 @@ def main():
         print(proc_args.filename)
         # load in file, mangle such that we can do duplication and linkage of components
         scirc_parse(gnm, proc_args.filename)
+
+    print(gnm.dependency_dict)
 
     runtime_ops = {"AUTOEXEC": True}
     execution_queue: deque[Operation] = deque()
