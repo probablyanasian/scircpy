@@ -270,7 +270,9 @@ def scirc_parse(net: NetworkMap, filename: str) -> None:
                             op.inputs.append(replaced_dict[node])
                 for node in subnet.exported_output:
                     if node in replaced_dict:
-                        net.exported_output[replaced_dict[node]] = subnet.exported_output[node]
+                        net.exported_output[
+                            replaced_dict[node]
+                        ] = subnet.exported_output[node]
                 net.dependency_dict.update(subnet.dependency_dict)
                 net.nodal_map.update(subnet.nodal_map)
                 net.op_map.update(subnet.op_map)
