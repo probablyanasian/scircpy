@@ -5,3 +5,4 @@ HADDR a b o1 c1
 HADDR o1 cin s c2
 OR cout c1 c2
 PROBE BIT s cout
+GROUP inp a b

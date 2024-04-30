@@ -126,6 +126,7 @@ class NetworkMap:
         self.exported: list[Node] = []
         self.exported_output: dict[Node, Operation] = {}
         self.unique_counter = itertools.count()
+        self.groups: dict[str, list[Node]] = {}
 
 
 def scirc_parse(net: NetworkMap, filename: str) -> None:
@@ -191,6 +192,12 @@ def scirc_parse(net: NetworkMap, filename: str) -> None:
                         > 0
                     ):
                         raise ScircError("A defined input is being exported.")
+            elif kw == "GROUP":
+                name, *nodes = args
+                if not all(map(lambda x: f"{file_prefix}_{x}" in net.nodal_map, nodes)):
+                    print("Did not recognize a node. Did you spell it correctly?")
+                    continue
+                net.groups[name] = [net.nodal_map[f"{file_prefix}_{n}"] for n in nodes]
             elif uc_kw in defined_ops:
                 # begin definition of logic gates. TODO: make this extensible
                 output, *inputs = args
@@ -307,7 +314,6 @@ def main():
     # TODO: optimize by delaying execution of duplicate nodes on the execution queue(?)
     # validate above logic
     runtime_ops = {"AUTOEXEC": True}
-    runtime_groups = {}
     while True:
         depth_counter = 0
         while len(execution_queue) > 0:
@@ -388,10 +394,8 @@ def main():
             if not all(map(lambda x: x in gnm.nodal_map, nodes)):
                 print("Did not recognize a node. Did you spell it correctly?")
                 continue
-            runtime_groups[name] = [gnm.nodal_map[n] for n in nodes]
-            print(
-                f"Successfully created group {name} with members: {runtime_groups[name]}"
-            )
+            gnm.groups[name] = [gnm.nodal_map[n] for n in nodes]
+            print(f"Successfully created group {name} with members: {gnm.groups[name]}")
         elif user_input.startswith("group set"):
             input_split = user_input[10:].split(" ")
             if len(input_split) <= 2:
@@ -399,35 +403,38 @@ def main():
                 continue
             group_name, fmt, value = input_split
             if fmt.upper() in {"BITS", "BIT", "B"}:
-                if len(value) != len(runtime_groups[group_name]):
+                if len(value) != len(gnm.groups[group_name]):
                     print(
-                        f"Bit length incompatable with group: {runtime_groups[group_name]}"
+                        f"Bit length incompatable with group: {gnm.groups[group_name]}"
                     )
                     continue
-                group = runtime_groups[group_name]
+                group = gnm.groups[group_name]
                 for idx in range(len(value)):
                     s_node = group[idx]
                     s_node.set(bool(int(value[idx])))
                     execution_queue.extend(gnm.dependency_dict[s_node])
             elif fmt.upper() in {"HEX", "H"}:
-                if len(value) * 4 < len(runtime_groups[group_name]):
+                if len(value) * 4 < len(gnm.groups[group_name]):
                     print(
-                        f"Bit length incompatable with group: {runtime_groups[group_name]}"
+                        f"Bit length incompatable with group: {gnm.groups[group_name]}"
                     )
                     continue
                 h_size = len(value) * 4
                 value = (bin(int(value, 16))[2:]).zfill(h_size)
-                group = runtime_groups[group_name]
+                group = gnm.groups[group_name]
                 for idx in range(len(value)):
                     s_node = group[idx]
                     s_node.set(bool(int(value[idx])))
                     execution_queue.extend(gnm.dependency_dict[s_node])
         elif user_input.startswith("group show"):
             group_name = user_input[11:]
-            if group_name not in runtime_groups:
+            if group_name == "":
+                print(f"{gnm.groups=}")
+                continue
+            if group_name not in gnm.groups:
                 print("Unknown group name provided.")
                 continue
-            print(f"{group_name}: {runtime_groups[group_name]}")
+            print(f"{group_name}: {gnm.groups[group_name]}")
         else:
             print("Unknown Command")
 
