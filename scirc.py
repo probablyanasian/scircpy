@@ -436,7 +436,7 @@ group.add_argument(
     "--all",
     dest="all_files",
     action="store_true",
-    help="Load all .scirc files in the directory",
+    help="Load all .scirc files in the directory (NOT SUPPORTED)",
 )
 group.add_argument(
     "-f",
