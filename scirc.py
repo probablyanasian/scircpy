@@ -347,9 +347,17 @@ def main():
             print(
                 "show all (sa): \tShow logic level for all nodes (Potentially long output)"
             )
+            print("probe <name>: \tShow logic value at corresponding node under <name>")
             print("set <Node Name> (True | False): \tSet an input Node's value")
             print("fset <Node Name> (True | False): \tSet an arbitrary Node's value")
+            print("group (names | show | create | set): \tFor more help: help group")
             print("quit (q): \tExit the program")
+        elif user_input in {"help group", "h group"}:
+            print("Available group Commands:")
+            print("group names: \tShows the names of all currently defined groups.")
+            print("group show (name): \tShows the group and nodes that make up the group. Default: all.")
+            print("group create <name> [*nodes]: \tCreate a new group named <name> and consisting of <[*nodes]>. Will overwrite same named groups.")
+            print("group set [BIT | HEX] <name> <value>: \tSets the corresponding group under <name> to <value>.")
         elif user_input in {"exit", "quit", "q"}:
             break
         elif user_input in {"show", "s"}:
