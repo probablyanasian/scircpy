@@ -450,6 +450,8 @@ def main():
                 print("Unknown group name provided.")
                 continue
             print(f"{group_name}: {gnm.groups[group_name]}")
+        elif user_input.startswith("group names"):
+            print(f"{gnm.groups.keys()=}")
         else:
             print("Unknown Command")
 
