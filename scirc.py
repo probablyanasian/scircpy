@@ -92,6 +92,9 @@ class ScircError(Exception):
 
 
 class HexProbe:
+    """
+    Instances of this class group a number of nodes to be read in a hexadecimal format
+    """
     def __init__(self, name: str, wires: list[Node]) -> None:
         self.wires = wires
         self.name = name
@@ -101,6 +104,10 @@ class HexProbe:
 
 
 class NetworkMap:
+    """
+    Instances of this object store the network for a scirc file.
+    It is designed to be fast for arbitrary lookup by string name and execution.
+    """
     def __init__(
         self, name, parent_chain_set: set[str], parent_chain_list: list[str]
     ) -> None:
