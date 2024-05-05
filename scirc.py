@@ -357,7 +357,7 @@ def main():
             print("group names: \tShows the names of all currently defined groups.")
             print("group show (name): \tShows the group and nodes that make up the group. Default: all.")
             print("group create <name> [*nodes]: \tCreate a new group named <name> and consisting of <[*nodes]>. Will overwrite same named groups.")
-            print("group set [BIT | HEX] <name> <value>: \tSets the corresponding group under <name> to <value>.")
+            print("group set <name> [BIT | HEX] <value>: \tSets the corresponding group under <name> to <value>.")
         elif user_input in {"exit", "quit", "q"}:
             break
         elif user_input in {"show", "s"}:
@@ -432,6 +432,9 @@ def main():
                 print("Invalid number of inputs")
                 continue
             group_name, fmt, value = input_split
+            if group_name not in gnm.groups:
+                print("Unknown group.")
+                continue
             if fmt.upper() in {"BITS", "BIT", "B"}:
                 if len(value) != len(gnm.groups[group_name]):
                     print(
