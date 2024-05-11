@@ -359,9 +359,9 @@ def main():
         elif user_input in {"help group", "h group"}:
             print("Available group Commands:")
             print("group names: \tShows the names of all currently defined groups.")
-            print("group show (name): \tShows the group and nodes that make up the group. Default: all.")
-            print("group create <name> [*nodes]: \tCreate a new group named <name> and consisting of <[*nodes]>. Will overwrite same named groups.")
-            print("group set <name> [BIT | HEX] <value>: \tSets the corresponding group under <name> to <value>.")
+            print("group show <Group Name>: \tShows the group and nodes that make up the group. Default: all.")
+            print("group create <Group Name> [*nodes]: \tCreate a new group named <Group Name> and consisting of <[*nodes]>. Will overwrite same named groups.")
+            print("group set <Group Name> [BIT | HEX] <value>: \tSets the corresponding group under <Group Name> to <value>.")
         elif user_input in {"exit", "quit", "q"}:
             break
         elif user_input in {"show", "s"}:
