@@ -155,7 +155,9 @@ def scirc_parse(net: NetworkMap, filename: str) -> None:
         for line in inf:
             kw, *args = line.rstrip().split(" ")
             uc_kw = kw.upper()
-            if kw in {"WIRE", "WIRES", "NODE", "NODES"}:
+            if kw in {"#"}:
+                pass
+            elif kw in {"WIRE", "WIRES", "NODE", "NODES"}:
                 for wire in args:
                     if wire in reserved_keywords:
                         raise ScircError(

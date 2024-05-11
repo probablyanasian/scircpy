@@ -1,4 +1,6 @@
-WIRE a b cin o1 c1 c2 s cout
+WIRE a b cin 
+WIRE o1 c1 c2
+WIRE s cout
 EXPORT a b cin s cout
 IMPORT half_adder.scirc as HADDR
 HADDR a b o1 c1
